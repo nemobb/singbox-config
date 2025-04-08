@@ -215,7 +215,7 @@ http
           console.log(new Date().toLocaleString(), "generate success", req.url);
           res
             .writeHead(200, { "content-type": "text/plain" })
-            .end(JSON.stringify(data));
+            .end(JSON.stringify(data, undefined, 2));
         })
         .catch((error) => {
           console.error("generate singbox config error:", error);
