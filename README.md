@@ -19,11 +19,11 @@ singbox config generate
       "url": "https://domain/path"
     }
   ]
-};
+}
 ```
- `custom.name`和`subscriptions[].name`不可以重复，用于节点分组
- `custom.nodes`填写节点配置信息
- `subscriptions[].url`填写订阅链接
+`custom.name`和`subscriptions[].name`不可以重复，用于节点分组
+`custom.nodes`填写节点配置信息
+`subscriptions[].url`填写订阅链接
 
 ##### 获取配置文件
 
