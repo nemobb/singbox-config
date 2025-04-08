@@ -1,0 +1,23 @@
+{
+  "name": "singbox-config",
+  "version": "1.0.0",
+  "description": "sing-box config generate",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemobb/singbox-config.git"
+  },
+  "keywords": [
+    "singbox",
+    "config"
+  ],
+  "author": "nemobb",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/nemobb/singbox-config/issues"
+  },
+  "homepage": "https://github.com/nemobb/singbox-config#readme"
+}

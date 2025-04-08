@@ -1,0 +1,12 @@
+{
+  "custom": {
+    "name": "Custom",
+    "nodes": []
+  },
+  "subscriptions": [
+    {
+      "name": "Subscription",
+      "url": ""
+    }
+  ]
+}
