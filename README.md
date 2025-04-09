@@ -39,4 +39,6 @@ docker run -d -p 5300:5300 nemobb/singbox-config:latest
 # 通过本地文件生成配置
 docker run -d -p 5300:5300 -v ~/hello.json:/app/hello.json nemobb/singbox-config:latest
 curl http://localhost:5300/api/singbox?profile=hello
+# 自定义singbox配置文件模版(outbounds里面的GLOBAL和AUTO不要修改)
+docker run -d -p 5300:5300 -v ~/template.json:/app/template.json nemobb/singbox-config:latest
 ```
