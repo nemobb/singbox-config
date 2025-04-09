@@ -30,6 +30,7 @@ singbox config generate
 * 启动服务`npm run start`后通过`http://localhost:5300`进行访问
 * 访问`/api/singbox`会根据根目录下`config.json`中的节点配置生成
 * 访问`/api/singbox?profile=hello`会根据根目录下的`hello.json`中节点配置生成
+* 访问`/api/singbox?template=template`会根据根目录下的`template.json`中配置模版生成
 * 访问`/api/singbox/sub?name=${groupName}&url=${sub}&name=${groupName2}&url=${sub2}`会根据参数中的订阅链接生成`groupName`和`sub`需要用`encodeURIComponent`进行编码
 
 ##### 在docker中运行
@@ -38,7 +39,8 @@ singbox config generate
 docker run -d -p 5300:5300 nemobb/singbox-config:latest
 # 通过本地文件生成配置
 docker run -d -p 5300:5300 -v ~/hello.json:/app/hello.json nemobb/singbox-config:latest
+# 使用自定义节点配置
 curl http://localhost:5300/api/singbox?profile=hello
-# 自定义singbox配置文件模版(outbounds里面的GLOBAL和AUTO不要修改)
-docker run -d -p 5300:5300 -v ~/template.json:/app/template.json nemobb/singbox-config:latest
+# 使用自定义节点配置和自定义模版
+curl http://localhost:5300/api/singbox?profile=hello&template=template
 ```

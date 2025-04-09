@@ -109,8 +109,9 @@ async function getSubscription(url) {
  *
  * @param {Array} outbounds 一组singbox出站配置
  * @param {string} tag 自定义组名
+ * @param {Object} template 自定义配置模版
  */
-function updateOutbounds(outbounds, tag) {
+function updateOutbounds(outbounds, tag, template) {
   const _outbounds = outbounds.map((item) => item.tag);
   const result = [
     ...outbounds,
@@ -122,25 +123,27 @@ function updateOutbounds(outbounds, tag) {
       interrupt_exist_connections: true,
     },
   ];
-  template.outbounds.find((item) => item.tag === "GLOBAL").outbounds.push(tag);
+  template.outbounds.find((item) => item.tag === "GLOBAL")?.outbounds.push(tag);
   template.outbounds
     .find((item) => item.tag === "AUTO")
-    .outbounds.push(..._outbounds);
+    ?.outbounds.push(..._outbounds);
   template.outbounds.push(...result);
 }
 
 /**
  * 根据配置配置文件生成singbox配置文件
  * @param {Object} config 节点配置信息
+ * @param {Object} template 自定义配置模版
  */
-async function generateSingboxConfig(config) {
+async function generateSingboxConfig(config, template) {
   const { custom, subscriptions } = config;
   if (custom && Array.isArray(custom.nodes) && custom.nodes.length) {
     const nodes = custom.nodes.filter((node) => isNode(node.trim()));
     nodes.length &&
       updateOutbounds(
         nodes.map((node) => getSingboxOutbound(node)),
-        custom.name
+        custom.name,
+        template
       );
   }
   if (Array.isArray(subscriptions) && subscriptions.length) {
@@ -149,7 +152,7 @@ async function generateSingboxConfig(config) {
     );
     res.forEach((outbounds, index) => {
       if (outbounds) {
-        updateOutbounds(outbounds, subscriptions[index].name);
+        updateOutbounds(outbounds, subscriptions[index].name, template);
       }
     });
   }
@@ -183,7 +186,29 @@ http
   .createServer((req, res) => {
     if (req.method === "GET") {
       const url = new URL(`http://${hostname}:${port}${req.url}`);
+      let _template = null;
       let _config = null;
+      if (!url.pathname.startsWith("/api/singbox")) {
+        return res.writeHead(404).end("Not Found");
+      } else {
+        const templateName = url.searchParams.get("template");
+        if (templateName) {
+          const fileName = templateName + ".json";
+          try {
+            const content = fs.readFileSync(pathResolve(fileName), {
+              encoding: "utf-8",
+            });
+            _template = JSON.parse(content);
+          } catch (e) {
+            console.error("read template file fail:", fileName);
+            return res
+              .writeHead(500, { "content-type": "text/plain" })
+              .end(`read template file fail: ${fileName}`);
+          }
+        } else {
+          _template = JSON.parse(JSON.stringify(template));
+        }
+      }
       switch (url.pathname) {
         case "/api/singbox/sub": // 从参数中获取节点配置信息
           _config = getConfigFromParams(url.searchParams);
@@ -204,13 +229,13 @@ http
                 .end(`read profile file fail: ${fileName}`);
             }
           } else {
-            _config = config;
+            _config = JSON.parse(JSON.stringify(config));
           }
           break;
         default:
           return res.writeHead(404).end("Not Found");
       }
-      generateSingboxConfig(_config)
+      generateSingboxConfig(_config, _template)
         .then((data) => {
           console.log(new Date().toLocaleString(), "generate success", req.url);
           res
