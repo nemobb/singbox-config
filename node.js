@@ -216,7 +216,8 @@ function parseShareLink(uri, features=defaultFeatures) {
 				password: decodeURIComponent(url.username),
 				transport: params.get('type') !== 'tcp' ? params.get('type') : null,
 				tls: '1',
-				tls_sni: params.get('sni')
+				tls_sni: params.get('sni'),
+				tls_insecure: params.get('allowInsecure') ? '1' : '0'
 			};
 			switch (params.get('type')) {
 			case 'grpc':
