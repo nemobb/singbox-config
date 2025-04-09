@@ -160,6 +160,12 @@
       },
       {
         "rule_set": ["geoip-cn", "geosite-geolocation-cn"],
+        "action": "route",
+        "outbound": "direct-out"
+      },
+      {
+        "rule_set": ["custom-direct"],
+        "action": "route",
         "outbound": "direct-out"
       }
     ],
@@ -181,6 +187,15 @@
         "tag": "geoip-cn",
         "format": "binary",
         "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs"
+      },
+      {
+        "type": "inline",
+        "tag": "custom-direct",
+        "rules": [
+          {
+            "port": 9993
+          }
+        ]
       }
     ],
     "final": "GLOBAL",
