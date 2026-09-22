@@ -2,6 +2,12 @@
 
 本文件记录本项目的版本变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.1] - 2026-09-22
+
+### 变更
+
+- 镜像改为同时发布 `linux/amd64` 与 `linux/arm64`，ARM 云主机与 64 位系统的树莓派可直接拉取。32 位 ARM 无现成镜像，Node 自 24 起不再发布该架构，需要的话可改用 `node:22-alpine` 自行构建。
+
 ## [1.0.0] - 2026-09-22
 
 首个公开发布版本。

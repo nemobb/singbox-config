@@ -68,25 +68,43 @@ jobs:
             *) echo "latest=true" >> $GITHUB_OUTPUT ;;
           esac
 
+      - name: Resolve Tags
+        id: tags
+        run: |
+          TAGS="${{ vars.DOCKER_IMAGE_NAME }}:${{ steps.version.outputs.version }}"
+          if [ "${{ steps.version.outputs.latest }}" = "true" ]; then
+            TAGS="${TAGS},${{ vars.DOCKER_IMAGE_NAME }}:latest"
+          fi
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+
+      # 跨架构构建需要 QEMU 模拟。本项目没有编译步骤，只是把文件拷进不同架构的
+      # 基础镜像，所以模拟的开销可以忽略。
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ vars.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Docker Image
-        run: |
-          TAGS="-t ${{ vars.DOCKER_IMAGE_NAME }}:${{ steps.version.outputs.version }}"
-          if [ "${{ steps.version.outputs.latest }}" = "true" ]; then
-            TAGS="$TAGS -t ${{ vars.DOCKER_IMAGE_NAME }}:latest"
-          fi
-          docker build \
-            --label org.opencontainers.image.version=${{ steps.version.outputs.version }} \
-            --label org.opencontainers.image.revision=${{ github.sha }} \
-            $TAGS .
-
+      # 架构范围受基础镜像限制：node:24-alpine 只提供 amd64、arm64 与 s390x，
+      # 32 位 ARM 自 Node 24 起已不再发布。需要 armv7 的用户可把 Dockerfile 的
+      # 基础镜像换成 node:22-alpine 自行构建。
+      #
       # Docker Hub 页面的说明文档需手动更新：改仓库描述要求 Delete 权限的 PAT，
       # 而 Docker Hub 的 PAT 是账号级的，无法限定到单个仓库。让这样一个凭据长期
       # 留在 CI 里，不值得换取一年改不了几次的 README 同步。
-      - name: Push Docker Image
-        run: docker push --all-tags ${{ vars.DOCKER_IMAGE_NAME }}
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}

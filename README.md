@@ -150,6 +150,10 @@ sing-box check -c <生成的配置>
 
 ### 在 docker 中运行
 
+镜像提供 `linux/amd64` 和 `linux/arm64` 两种架构，`docker pull` 会自动选取匹配的一份，x86 服务器、ARM 云主机、64 位系统的树莓派都可直接使用。
+
+32 位 ARM（armv6 / armv7，例如装了 32 位系统的树莓派）没有现成镜像——Node 自 24 起不再发布这两个架构。这类设备可以把 [Dockerfile](Dockerfile) 的基础镜像改成 `node:22-alpine` 后自行构建。
+
 ```bash
 # 不挂载任何文件，通过 /api/singbox/sub 的请求参数传入订阅链接
 docker run -d -p 5300:5300 nemobb/singbox-config:latest
