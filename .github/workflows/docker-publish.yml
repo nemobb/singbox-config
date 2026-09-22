@@ -85,15 +85,8 @@ jobs:
             --label org.opencontainers.image.revision=${{ github.sha }} \
             $TAGS .
 
+      # Docker Hub 页面的说明文档需手动更新：改仓库描述要求 Delete 权限的 PAT，
+      # 而 Docker Hub 的 PAT 是账号级的，无法限定到单个仓库。让这样一个凭据长期
+      # 留在 CI 里，不值得换取一年改不了几次的 README 同步。
       - name: Push Docker Image
         run: docker push --all-tags ${{ vars.DOCKER_IMAGE_NAME }}
-
-      - name: Update Docker Hub Description
-        if: steps.version.outputs.latest == 'true'
-        uses: peter-evans/dockerhub-description@v4
-        with:
-          username: ${{ vars.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: ${{ vars.DOCKER_IMAGE_NAME }}
-          readme-filepath: ./README.md
-          short-description: ${{ github.event.repository.description }}

@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `docker build -t singbox-config . && docker run -d -p 5300:5300 singbox-config`.
 - Manual smoke test: `curl 'http://localhost:5300/api/singbox'` — the bundled [defaults/config.json](defaults/config.json) has nodes, so this works with nothing mounted.
 - Releases are driven entirely by git tags: pushing `v<semver>` builds and pushes the Docker image. Nothing else triggers CI, so ordinary pushes to `main` publish nothing. The release flow is: bump `package.json`'s `version` → commit → `git tag v<same version>` → `git push --tags`. CI fails if the tag and `package.json` disagree, and a prerelease tag (`v1.1.0-rc.1`) publishes the version tag but not `latest`.
+- The Docker Hub repository description is **not** synced by CI; paste README into the web UI when it changes materially. Automating it needs a Delete-scoped PAT, and Docker Hub PATs are account-wide rather than per-repository, so that credential would let anyone holding it wipe every repo on the account.
 
 ## Architecture
 
