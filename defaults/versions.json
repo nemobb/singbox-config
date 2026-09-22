@@ -1,0 +1,12 @@
+{
+  "default": "1.14",
+  "templates": {
+    "1.11": "template-v111",
+    "1.12": "template-v113",
+    "1.13": "template-v113",
+    "1.14": "template-v114"
+  },
+  "features": {
+    "with_anytls": "1.12"
+  }
+}

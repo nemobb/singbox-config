@@ -1,0 +1,35 @@
+{
+  "custom": {
+    "name": "EXAMPLE",
+    "nodes": [
+      "ss://YWVzLTI1Ni1nY206ZXhhbXBsZS1wYXNzd29yZA==@192.0.2.1:8388#EXAMPLE-shadowsocks",
+      "vmess://eyJ2IjoiMiIsInBzIjoiRVhBTVBMRS12bWVzcy13cyIsImFkZCI6ImV4YW1wbGUuY29tIiwicG9ydCI6IjQ0MyIsImlkIjoiMTExMTExMTEtMjIyMi0zMzMzLTQ0NDQtNTU1NTU1NTU1NTU1IiwiYWlkIjoiMCIsIm5ldCI6IndzIiwiaG9zdCI6ImV4YW1wbGUuY29tIiwicGF0aCI6Ii9wYXRoIiwidGxzIjoidGxzIn0=",
+      "vless://11111111-2222-3333-4444-555555555555@example.com:443?encryption=none&security=tls&sni=example.com&fp=chrome&type=ws&host=example.com&path=%2Fpath#EXAMPLE-vless-ws",
+      "vless://11111111-2222-3333-4444-555555555555@example.com:443?encryption=none&security=tls&sni=example.com&type=grpc&serviceName=example#EXAMPLE-vless-grpc",
+      "vless://11111111-2222-3333-4444-555555555555@example.com:443?encryption=none&security=tls&sni=example.com&type=httpupgrade&host=example.com&path=%2Fpath#EXAMPLE-vless-httpupgrade",
+      "trojan://example-password@example.com:443?sni=example.com&type=ws&host=example.com&path=%2Fpath#EXAMPLE-trojan-ws",
+      "hysteria2://example-password@example.com:443?sni=example.com#EXAMPLE-hysteria2",
+      "tuic://11111111-2222-3333-4444-555555555555:example-password@example.com:443?sni=example.com&congestion_control=bbr#EXAMPLE-tuic",
+      "anytls://example-password@example.com:443?sni=example.com#EXAMPLE-anytls",
+      "https://user:example-password@example.com:443#EXAMPLE-http",
+      "hysteria://example.com:443?auth=example-password&upmbps=50&downmbps=100&peer=example.com&alpn=h3#EXAMPLE-hysteria",
+      "socks5://user:example-password@192.0.2.1:1080#EXAMPLE-socks",
+      "vless://11111111-2222-3333-4444-555555555555@example.com:443?encryption=none&security=reality&sni=example.com&fp=chrome&pbk=jNXHt1yRo0vDuchQlIP6Z0ZvjT3KtzVI-T4E7RoLJS0&sid=6ba85179e30d4fc2&flow=xtls-rprx-vision&type=tcp#EXAMPLE-vless-reality",
+      "vless://11111111-2222-3333-4444-555555555555@example.com:443?encryption=none&security=tls&sni=example.com&type=ws&host=example.com&path=%2Fpath%3Fed%3D2048#EXAMPLE-vless-ws-earlydata",
+      "ss://YWVzLTI1Ni1nY206ZXhhbXBsZS1wYXNzd29yZA==@192.0.2.1:8388?plugin=obfs-local%3Bobfs%3Dhttp#EXAMPLE-shadowsocks-plugin",
+      "trojan://example-password@example.com:443?sni=example.com&type=grpc&serviceName=example#EXAMPLE-trojan-grpc",
+      "vmess://eyJ2IjoiMiIsInBzIjoiRVhBTVBMRS12bWVzcy1oMiIsImFkZCI6ImV4YW1wbGUuY29tIiwicG9ydCI6IjQ0MyIsImlkIjoiMTExMTExMTEtMjIyMi0zMzMzLTQ0NDQtNTU1NTU1NTU1NTU1IiwiYWlkIjoiMCIsIm5ldCI6ImgyIiwiaG9zdCI6ImV4YW1wbGUuY29tIiwicGF0aCI6Ii9wYXRoIiwidGxzIjoidGxzIn0=",
+      "socks4://192.0.2.1:1080#EXAMPLE-socks4"
+    ]
+  },
+  "subscriptions": [
+    {
+      "name": "EXAMPLE-SUB-BASE64",
+      "url": "https://pub-deed7b2a6a584107946c12698ffe9627.r2.dev/subscription.txt"
+    },
+    {
+      "name": "EXAMPLE-SUB-SIP008",
+      "url": "https://pub-deed7b2a6a584107946c12698ffe9627.r2.dev/subscription-sip008.json"
+    }
+  ]
+}

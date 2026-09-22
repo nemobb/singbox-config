@@ -2,16 +2,71 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches:
-      - release
+    tags:
+      - "v*"
 
 jobs:
-  build:
+  # 校验的是 generateOutbound 的输出而非模版：出站字段写错会让整份配置无法
+  # 加载，只有真实的 sing-box 能判定。仅覆盖默认版本，加新协议或新模版时需
+  # 本地对其余版本补跑。
+  check-config:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      # 取 .0 而非最新补丁：singbox=1.14 承诺任何 1.14.x 可用，.0 是该承诺的
+      # 下限，模版误用后续补丁才加入的特性时只有它能发现。
+      - name: Resolve sing-box Version
+        id: singbox
+        run: |
+          VERSION="$(node -p "require('./defaults/versions.json').default")"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}.0" >> $GITHUB_OUTPUT
+          echo "checking against sing-box v${VERSION}.0"
+
+      # 节点取自 defaults/config.json，那份配置因此也被这一步验证。其中的
+      # subscriptions 指向 R2 上的两个测试订阅，是本构建唯一的外部依赖：对象
+      # 被删或 R2 不可达时，这一步会失败。详见 CLAUDE.md。
+      - name: Generate Config
+        run: |
+          node index.js &
+          for i in $(seq 1 20); do
+            curl -sf "http://localhost:5300/api/singbox?singbox=${{ steps.singbox.outputs.version }}" -o config.json && break
+            sleep 0.5
+          done
+          test -s config.json
+
+      - name: Check With sing-box ${{ steps.singbox.outputs.tag }}
+        run: |
+          docker run --rm -v "$PWD":/cfg \
+            ghcr.io/sagernet/sing-box:${{ steps.singbox.outputs.tag }} \
+            check -c /cfg/config.json
+
+  build:
+    runs-on: ubuntu-latest
+    needs: check-config
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 带后缀的预发布版本（如 v1.1.0-rc.1）只推版本号，不更新 latest。
+      - name: Resolve Version
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match package.json version ${PKG_VERSION}"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          case "$VERSION" in
+            *-*) echo "latest=false" >> $GITHUB_OUTPUT ;;
+            *) echo "latest=true" >> $GITHUB_OUTPUT ;;
+          esac
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -20,7 +75,25 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build Docker Image
-        run: docker build -t ${{ vars.DOCKER_IMAGE_NAME }}:latest .
+        run: |
+          TAGS="-t ${{ vars.DOCKER_IMAGE_NAME }}:${{ steps.version.outputs.version }}"
+          if [ "${{ steps.version.outputs.latest }}" = "true" ]; then
+            TAGS="$TAGS -t ${{ vars.DOCKER_IMAGE_NAME }}:latest"
+          fi
+          docker build \
+            --label org.opencontainers.image.version=${{ steps.version.outputs.version }} \
+            --label org.opencontainers.image.revision=${{ github.sha }} \
+            $TAGS .
 
       - name: Push Docker Image
-        run: docker push ${{ vars.DOCKER_IMAGE_NAME }}:latest
+        run: docker push --all-tags ${{ vars.DOCKER_IMAGE_NAME }}
+
+      - name: Update Docker Hub Description
+        if: steps.version.outputs.latest == 'true'
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ vars.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: ${{ vars.DOCKER_IMAGE_NAME }}
+          readme-filepath: ./README.md
+          short-description: ${{ github.event.repository.description }}

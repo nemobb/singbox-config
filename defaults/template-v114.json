@@ -1,0 +1,224 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "https",
+        "tag": "proxy-dns",
+        "server": "8.8.8.8",
+        "detour": "GLOBAL"
+      },
+      {
+        "type": "https",
+        "tag": "direct-dns",
+        "server": "223.5.5.5"
+      },
+      {
+        "type": "local",
+        "tag": "local-dns"
+      }
+    ],
+    "rules": [
+      {
+        "clash_mode": "Block",
+        "action": "predefined",
+        "rcode": "REFUSED"
+      },
+      {
+        "rule_set": ["custom-local"],
+        "server": "local-dns"
+      },
+      {
+        "clash_mode": "Direct",
+        "server": "direct-dns"
+      },
+      {
+        "rule_set": ["geosite-geolocation-cn"],
+        "server": "direct-dns"
+      },
+      {
+        "clash_mode": "Global",
+        "server": "proxy-dns"
+      },
+      { "action": "evaluate", "server": "proxy-dns" },
+      {
+        "type": "logical",
+        "mode": "and",
+        "rules": [
+          {
+            "rule_set": "geosite-geolocation-!cn",
+            "invert": true
+          },
+          {
+            "match_response": true,
+            "rule_set": "geoip-cn"
+          }
+        ],
+        "server": "proxy-dns",
+        "client_subnet": "114.114.114.114/24"
+      },
+      { "action": "respond" }
+    ],
+    "final": "proxy-dns",
+    "strategy": "ipv4_only"
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "mtu": 9000,
+      "address": ["172.19.0.1/30"],
+      "auto_route": true,
+      "strict_route": true,
+      "stack": "system"
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct-out",
+      "network_strategy": "default"
+    },
+    {
+      "type": "selector",
+      "tag": "GLOBAL",
+      "outbounds": ["AUTO"],
+      "default": "AUTO",
+      "interrupt_exist_connections": true
+    },
+    {
+      "type": "urltest",
+      "tag": "AUTO",
+      "outbounds": [],
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": "3m",
+      "tolerance": 50,
+      "idle_timeout": "30m",
+      "interrupt_exist_connections": false
+    }
+  ],
+  "http_clients": [
+    {
+      "tag": "rule-set-http",
+      "detour": "GLOBAL"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          {
+            "protocol": "dns"
+          },
+          {
+            "port": 53
+          }
+        ],
+        "action": "hijack-dns"
+      },
+      {
+        "type": "logical",
+        "mode": "or",
+        "rules": [
+          {
+            "port": 853
+          },
+          {
+            "network": "udp",
+            "port": 443
+          },
+          {
+            "protocol": "stun"
+          }
+        ],
+        "action": "reject"
+      },
+      {
+        "clash_mode": "Direct",
+        "outbound": "direct-out"
+      },
+      {
+        "clash_mode": "Global",
+        "outbound": "GLOBAL"
+      },
+      {
+        "clash_mode": "Block",
+        "action": "reject"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct-out"
+      },
+      {
+        "rule_set": ["geosite-geolocation-cn"],
+        "outbound": "direct-out"
+      },
+      {
+        "type": "logical",
+        "mode": "and",
+        "rules": [
+          {
+            "rule_set": "geoip-cn"
+          },
+          {
+            "rule_set": "geosite-geolocation-!cn",
+            "invert": true
+          }
+        ],
+        "outbound": "direct-out"
+      }
+    ],
+    "rule_set": [
+      {
+        "type": "remote",
+        "tag": "geosite-geolocation-cn",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-cn.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "geosite-geolocation-!cn",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-!cn.srs"
+      },
+      {
+        "type": "remote",
+        "tag": "geoip-cn",
+        "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs"
+      },
+      {
+        "tag": "custom-local",
+        "rules": [
+          {
+            "domain_suffix": [".local", ".lan"]
+          }
+        ]
+      }
+    ],
+    "final": "GLOBAL",
+    "auto_detect_interface": true,
+    "default_http_client": "rule-set-http",
+    "default_domain_resolver": {
+      "server": "direct-dns",
+      "strategy": "ipv4_only"
+    }
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true,
+      "store_dns": true
+    },
+    "clash_api": {
+      "external_controller": "127.0.0.1:9090",
+      "external_ui": "ui",
+      "default_mode": "Enhanced"
+    }
+  }
+}

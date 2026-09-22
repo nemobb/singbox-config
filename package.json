@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "sing-box config generate",
   "main": "index.js",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "start": "node index.js"
   },

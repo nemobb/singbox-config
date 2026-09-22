@@ -1,50 +1,47 @@
 {
   "log": {
-    "disabled": false,
     "level": "info",
     "timestamp": true
   },
   "dns": {
     "servers": [
       {
-        "tag": "google-dns",
-        "address": "https://8.8.8.8/dns-query",
-        "strategy": "ipv4_only"
+        "type": "https",
+        "tag": "proxy-dns",
+        "server": "8.8.8.8",
+        "detour": "GLOBAL"
       },
       {
-        "tag": "local-dns",
-        "address": "https://223.5.5.5/dns-query",
-        "detour": "direct-out"
+        "type": "https",
+        "tag": "direct-dns",
+        "server": "223.5.5.5"
       },
       {
-        "tag": "block-dns",
-        "address": "rcode://refused"
-      },
-      {
-        "tag": "dhcp-dns",
-        "address": "dhcp://auto"
+        "type": "local",
+        "tag": "local-dns"
       }
     ],
     "rules": [
       {
-        "outbound": "any",
-        "server": "local-dns"
+        "clash_mode": "Block",
+        "action": "predefined",
+        "rcode": "REFUSED"
       },
       {
-        "clash_mode": "Block",
-        "server": "block-dns"
+        "rule_set": ["custom-local"],
+        "server": "local-dns"
       },
       {
         "clash_mode": "Direct",
-        "server": "local-dns"
+        "server": "direct-dns"
+      },
+      {
+        "rule_set": ["geosite-geolocation-cn"],
+        "server": "direct-dns"
       },
       {
         "clash_mode": "Global",
-        "server": "google-dns"
-      },
-      {
-        "rule_set": "geosite-geolocation-cn",
-        "server": "local-dns"
+        "server": "proxy-dns"
       },
       {
         "type": "logical",
@@ -58,27 +55,20 @@
             "rule_set": "geoip-cn"
           }
         ],
-        "server": "google-dns"
+        "server": "proxy-dns",
+        "client_subnet": "114.114.114.114/24"
       }
     ],
-    "final": "google-dns",
-    "strategy": "prefer_ipv4",
-    "client_subnet": "114.114.114.114"
+    "final": "proxy-dns",
+    "strategy": "ipv4_only"
   },
   "inbounds": [
-    {
-      "type": "mixed",
-      "tag": "mixed-in",
-      "listen": "::",
-      "listen_port": 5330,
-      "set_system_proxy": false
-    },
     {
       "type": "tun",
       "tag": "tun-in",
       "interface_name": "tun0",
-      "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
       "mtu": 9000,
+      "address": ["172.19.0.1/30"],
       "auto_route": true,
       "stack": "system"
     }
@@ -86,7 +76,8 @@
   "outbounds": [
     {
       "type": "direct",
-      "tag": "direct-out"
+      "tag": "direct-out",
+      "network_strategy": "default"
     },
     {
       "type": "selector",
@@ -108,7 +99,9 @@
   ],
   "route": {
     "rules": [
-      { "action": "sniff" },
+      {
+        "action": "sniff"
+      },
       {
         "type": "logical",
         "mode": "or",
@@ -121,25 +114,6 @@
           }
         ],
         "action": "hijack-dns"
-      },
-      {
-        "ip_is_private": true,
-        "action": "route",
-        "outbound": "direct-out"
-      },
-      {
-        "clash_mode": "Direct",
-        "action": "route",
-        "outbound": "direct-out"
-      },
-      {
-        "clash_mode": "Global",
-        "action": "route",
-        "outbound": "GLOBAL"
-      },
-      {
-        "clash_mode": "Block",
-        "action": "reject"
       },
       {
         "type": "logical",
@@ -159,13 +133,37 @@
         "action": "reject"
       },
       {
-        "rule_set": ["geoip-cn", "geosite-geolocation-cn"],
-        "action": "route",
+        "clash_mode": "Direct",
         "outbound": "direct-out"
       },
       {
-        "rule_set": ["custom-direct"],
-        "action": "route",
+        "clash_mode": "Global",
+        "outbound": "GLOBAL"
+      },
+      {
+        "clash_mode": "Block",
+        "action": "reject"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct-out"
+      },
+      {
+        "rule_set": ["custom-direct", "geosite-geolocation-cn"],
+        "outbound": "direct-out"
+      },
+      {
+        "type": "logical",
+        "mode": "and",
+        "rules": [
+          {
+            "rule_set": "geoip-cn"
+          },
+          {
+            "rule_set": "geosite-geolocation-!cn",
+            "invert": true
+          }
+        ],
         "outbound": "direct-out"
       }
     ],
@@ -173,23 +171,27 @@
       {
         "type": "remote",
         "tag": "geosite-geolocation-cn",
-        "format": "binary",
         "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-cn.srs"
       },
       {
         "type": "remote",
         "tag": "geosite-geolocation-!cn",
-        "format": "binary",
         "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-geolocation-!cn.srs"
       },
       {
         "type": "remote",
         "tag": "geoip-cn",
-        "format": "binary",
         "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs"
       },
       {
-        "type": "inline",
+        "tag": "custom-local",
+        "rules": [
+          {
+            "domain_suffix": [".local", ".lan"]
+          }
+        ]
+      },
+      {
         "tag": "custom-direct",
         "rules": [
           {
@@ -200,7 +202,10 @@
     ],
     "final": "GLOBAL",
     "auto_detect_interface": true,
-    "override_android_vpn": true
+    "default_domain_resolver": {
+      "server": "direct-dns",
+      "strategy": "ipv4_only"
+    }
   },
   "experimental": {
     "cache_file": {

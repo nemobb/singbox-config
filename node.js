@@ -2,15 +2,55 @@
 	*
 	* 生成节点
 	* https://github.com/immortalwrt/homeproxy/blob/master/root/etc/homeproxy/scripts/generate_client.uc
+	* 同步自 98d7ab0 (2026-06-19)
 	*
 	* 解析节点
 	* https://github.com/immortalwrt/homeproxy/blob/master/htdocs/luci-static/resources/view/homeproxy/node.js
+	* 同步自 1c265ac (2026-08-11)
+	*
+	* 辅助函数取自 root/etc/homeproxy/scripts/homeproxy.uc，语义必须与上游一致：
+	* 它们用 null 表示“该字段不输出”，最终由调用方剥离；若改成返回 false 或
+	* NaN，字段会残留在配置里，而 sing-box 对未知字段是致命错误。
+	*
+	* 相对上游的本地改动，同步时请保留：
+	*   - anytls 增加 with_anytls 版本裁剪（上游无版本概念）
+	*   - trojan 增加 allowInsecure 解析（上游没有这个参数）
+	*   - hysteria2 的 insecure 改为严格等于 '1'（上游为宽松判断，与其 hysteria
+	*     的写法不一致，宽松判断会让 insecure=0 反而开启不安全模式）
+	* 其余协议分支与上游一致（仅有分号等语法差异），同步时可直接覆盖。
+	*
+	* 同步步骤：按上面的基准 commit 取两个来源文件的增量改动 → 逐协议分支比对
+	* → 合入时保留上述本地改动 → 更新基准 commit → 用 sing-box check 验证。
 	*
 	*/
 
+/* 上游用 features 表示 sing-box 构建是否包含某项能力，这里借同一机制表示目标
+ * 版本是否支持某个协议：不支持时 parseShareLink 返回 null，该节点被跳过，
+ * 而不是生成一份旧版本无法加载的配置。各协议的最低版本见 defaults/versions.json */
 const defaultFeatures = {
 	with_quic: true,
-	with_utls: true
+	with_utls: true,
+	with_anytls: true
+}
+
+/* 上游 isEmpty */
+function isEmpty(res) {
+	return !res || res === 'nil' || (typeof res === 'object' && Object.keys(res).length === 0);
+}
+
+/* 上游 strToBool：非 '1' 一律返回 null */
+function strToBool(str) {
+	return (str === '1') || null;
+}
+
+/* 上游 strToInt：空值返回 null，而非 NaN */
+function strToInt(str) {
+	return !isEmpty(str) ? (parseInt(str, 10) || null) : null;
+}
+
+/* 上游 strToTime */
+function strToTime(str) {
+	return !isEmpty(str) ? (str + 's') : null;
 }
 
 const hp = {
@@ -47,12 +87,39 @@ const hp = {
 	],
 }
 
-function parseShareLink(uri, features=defaultFeatures) {
+function parseShareLink(uri, features) {
 	let config, url, params;
+
+	/* 调用方只需给出与默认不同的项 */
+	features = Object.assign({}, defaultFeatures, features);
 
 	uri = uri.split('://');
 	if (uri[0] && uri[1]) {
 		switch (uri[0]) {
+		case 'anytls':
+			/* https://github.com/anytls/anytls-go/blob/v0.0.8/docs/uri_scheme.md */
+			url = new URL('http://' + uri[1]);
+			params = url.searchParams;
+
+			if (!features.with_anytls)
+				return null;
+
+			/* Check if password exists */
+			if (!url.username)
+				return null;
+
+			config = {
+				label: url.hash ? decodeURIComponent(url.hash.slice(1)) : null,
+				type: 'anytls',
+				address: url.hostname,
+				port: url.port || '80',
+				password: url.username ? decodeURIComponent(url.username) : null,
+				tls: '1',
+				tls_sni: params.get('sni'),
+				tls_insecure: (params.get('insecure') === '1') ? '1' : '0'
+			};
+
+			break;
 		case 'http':
 		case 'https':
 			url = new URL('http://' + uri[1]);
@@ -91,7 +158,7 @@ function parseShareLink(uri, features=defaultFeatures) {
 				tls: '1',
 				tls_sni: params.get('peer'),
 				tls_alpn: params.get('alpn'),
-				tls_insecure: params.get('insecure') ? '1' : '0'
+				tls_insecure: (params.get('insecure') === '1') ? '1' : '0'
 			};
 
 			break;
@@ -116,14 +183,14 @@ function parseShareLink(uri, features=defaultFeatures) {
 				hysteria_obfs_password: params.get('obfs-password'),
 				tls: '1',
 				tls_sni: params.get('sni'),
-				tls_insecure: params.get('insecure') ? '1' : '0'
+				tls_insecure: (params.get('insecure') === '1') ? '1' : '0'
 			};
 
 			break;
 		case 'socks':
 		case 'socks4':
 		case 'socks4a':
-		case 'socsk5':
+		case 'socks5':
 		case 'socks5h':
 			url = new URL('http://' + uri[1]);
 
@@ -154,12 +221,16 @@ function parseShareLink(uri, features=defaultFeatures) {
 				url = new URL('http://' + uri[1]);
 
 				let userinfo;
-				if (url.username && url.password)
+				if (url.username && url.password) {
 					/* User info encoded with URIComponent */
 					userinfo = [url.username, decodeURIComponent(url.password)];
-				else if (url.username)
+				} else if (url.username) {
 					/* User info encoded with base64 */
 					userinfo = hp.decodeBase64Str(decodeURIComponent(url.username)).split(':');
+					/* 密码本身可能含 ':'，除首段外全部归还给密码 */
+					if (userinfo.length > 1)
+						userinfo = [userinfo[0], userinfo.slice(1).join(':')];
+				}
 
 				if (!hp.shadowsocks_encrypt_methods.includes(userinfo[0]))
 					return null;
@@ -168,7 +239,7 @@ function parseShareLink(uri, features=defaultFeatures) {
 				if (url.search && url.searchParams.get('plugin')) {
 					let plugin_info = url.searchParams.get('plugin').split(';');
 					plugin = plugin_info[0];
-					plugin_opts = plugin_info.slice(1) ? plugin_info.slice(1).join(';') : null;
+					plugin_opts = (plugin_info.length > 1) ? plugin_info.slice(1).join(';') : null;
 				}
 
 				config = {
@@ -217,7 +288,7 @@ function parseShareLink(uri, features=defaultFeatures) {
 				transport: params.get('type') !== 'tcp' ? params.get('type') : null,
 				tls: '1',
 				tls_sni: params.get('sni'),
-				tls_insecure: params.get('allowInsecure') ? '1' : '0'
+				tls_insecure: (params.get('allowInsecure') === '1') ? '1' : '0'
 			};
 			switch (params.get('type')) {
 			case 'grpc':
@@ -393,6 +464,28 @@ function parseShareLink(uri, features=defaultFeatures) {
 	return config;
 }
 
+/* 下列字段 sing-box 只在部分出站类型上接受，出现在其它类型上会报 unknown field
+ * 并拒绝整份配置（对 1.14 实测，与官方文档一致）：
+ *
+ *   tls                             socks、shadowsocks 不支持
+ *   transport                       仅 vless、vmess、trojan
+ *   udp_over_tcp                    仅 socks、shadowsocks
+ *   transport.method                仅 http
+ *   transport.idle_timeout          仅 http、grpc
+ *   transport.ping_timeout          仅 http、grpc
+ *   transport.permit_without_stream 仅 grpc
+ *
+ * 本函数沿用上游的平铺写法，不按类型分支。因此正确性依赖两个前提：
+ *   1. parseShareLink 只为支持该字段的类型产生对应的值；
+ *   2. 辅助函数在无值时返回 null，由调用方剥离。
+ * 两者缺一，生成的配置就会无法加载——曾因 strToBool 被写成 Boolean() 而使
+ * permit_without_stream 输出 false，导致所有 ws 节点的配置被拒绝。
+ *
+ * 另有标注“没有实现这种解析”的出站分支：sing-box 支持，但 parseShareLink 不
+ * 产生这种 type。tls 的 min_version、cipher_suites 等同属此类，sing-box 接受，
+ * 只是分享链接里没有这些信息。
+ *
+ * 上述两类位置都以 XXX 标注，grep XXX 可一次列出全部。 */
 function generateOutbound(node) {
 	if (!node || !node.type) {
 		return null
@@ -401,7 +494,7 @@ function generateOutbound(node) {
 		type: node.type,
 		tag: node.label,
 		server:  node.address,
-		server_port: +node.port,
+		server_port: strToInt(node.port),
 	}
 	switch(node.type) {
 		case 'socks':
@@ -428,7 +521,7 @@ function generateOutbound(node) {
 		case 'vmess':
 			Object.assign(outbound, {
 				uuid: node.uuid,
-				alter_id: node.vmess_alterid,
+				alter_id: strToInt(node.vmess_alterid),
 				security: node.vmess_encrypt,
 			})
 			break;
@@ -439,9 +532,9 @@ function generateOutbound(node) {
 			break;
 		case 'hysteria':
 			Object.assign(outbound, {
-				hop_interval: node.hysteria_hop_interval ? (node.hysteria_hop_interval+'s'):null,
-			  up_mbps: +node.hysteria_up_mbps,
-				down_mbps: +node.hysteria_down_mbps,
+				hop_interval: strToTime(node.hysteria_hop_interval),
+				up_mbps: strToInt(node.hysteria_up_mbps),
+				down_mbps: strToInt(node.hysteria_down_mbps),
 				obfs: node.hysteria_obfs_password,
 				auth_str: (node.hysteria_auth_type === 'string') ? node.hysteria_auth_payload : null,
 			})
@@ -449,10 +542,11 @@ function generateOutbound(node) {
 		case 'hysteria2':
 			Object.assign(outbound, {
 				password: node.password,
-				obfs: {
+				/* 无混淆时整个 obfs 不输出，否则会留下一个空对象 */
+				obfs: node.hysteria_obfs_type ? {
 					type: node.hysteria_obfs_type,
 					password: node.hysteria_obfs_password
-				},
+				} : null,
 			})
 			break;
 		case 'vless':
@@ -476,7 +570,6 @@ function generateOutbound(node) {
 				password: node.password,
 			})
 			break;
-		// XXX 没有实现这种解析
 		case 'anytls':
 			Object.assign(outbound, {
 				password: node.password,
@@ -505,10 +598,11 @@ function generateOutbound(node) {
       server_name: node.tls_sni,
       insecure: node.tls_insecure === "1",
       alpn: node.tls_alpn,
-      min_version: node.tls_min_version, // XXX
-      max_version: node.tls_max_version, // XXX
-      cipher_suites: node.tls_cipher_suites, // XXX
-      certificate_path: node.tls_cert_path, // XXX
+      /* XXX 以下四项 sing-box 接受，但分享链接里没有这些信息 */
+      min_version: node.tls_min_version,
+      max_version: node.tls_max_version,
+      cipher_suites: node.tls_cipher_suites,
+      certificate_path: node.tls_cert_path,
       ech:
         node.tls_ech === "1"
           ? {
@@ -545,37 +639,27 @@ function generateOutbound(node) {
             Host: node.ws_host,
           }
         : null,
-      method: node.http_method,
-      max_early_data: Number(node.websocket_early_data),
+      max_early_data: strToInt(node.websocket_early_data),
       early_data_header_name: node.websocket_early_data_header,
       service_name: node.grpc_servicename,
-			// XXX
-      idle_timeout: node.http_idle_timeout
-        ? node.http_idle_timeout + "s"
-        : null,
-      ping_timeout: node.http_ping_timeout
-        ? node.http_ping_timeout + "s"
-        : null,
-      permit_without_stream: Boolean(node.grpc_permit_without_stream),
+      /* XXX 以下四项仅对部分 transport 类型合法，详见函数上方说明 */
+      method: node.http_method,
+      idle_timeout: strToTime(node.http_idle_timeout),
+      ping_timeout: strToTime(node.http_ping_timeout),
+      permit_without_stream: strToBool(node.grpc_permit_without_stream),
     };
 	}
 
-	// XXX
+	/* XXX 仅 socks 与 shadowsocks 支持 */
 	if (node.udp_over_tcp === '1') {
 		outbound.udp_over_tcp = {
 			enabled: true,
-			version: Number(node.udp_over_tcp_version)
+			version: strToInt(node.udp_over_tcp_version)
 		}
 	}
-	if (node.tcp_fast_open) {
-		outbound.tcp_fast_open = Boolean(node.tcp_fast_open)
-	}
-	if (node.tcp_multi_path) {
-		outbound.tcp_multi_path = Boolean(node.tcp_multi_path)
-	}
-	if (node.udp_fragment) {
-		outbound.udp_fragment = Boolean(node.udp_fragment)
-	}
+	outbound.tcp_fast_open = strToBool(node.tcp_fast_open);
+	outbound.tcp_multi_path = strToBool(node.tcp_multi_path);
+	outbound.udp_fragment = strToBool(node.udp_fragment);
 
 	return outbound
 }
